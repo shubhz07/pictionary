@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:json_annotation/json_annotation.dart';
 
 final WebSocketChannel channel = IOWebSocketChannel.connect("ws://192.168.225.220:6969/test");
 
@@ -16,11 +15,13 @@ class DrawingPage extends StatefulWidget {
 
 class _DrawingPageState extends State<DrawingPage> {
   List<DrawingPoints> pointsList = List();
+  List<DrawingPoints> tempList = List();
   StrokeCap strokeCap = StrokeCap.butt;
   PaintingContext paintingContext;
   Color pickerColor = new Color(0xff443a49);
   double customStrokeWidth = 4;
-  int startIndex, lastIndex;
+  String drawingKey;
+//  int startIndex, lastIndex;
 
 // Color selection is done here
   void selectedColor(){
@@ -74,13 +75,20 @@ class _DrawingPageState extends State<DrawingPage> {
                                 ..color = pickerColor
                                 ..strokeWidth = customStrokeWidth
                           ));
-//                          sendMessage();
+                          tempList.add(DrawingPoints(
+                              points: details.localPosition,
+                              paint: Paint()
+                                ..strokeCap = strokeCap
+                                ..isAntiAlias = true
+                                ..color = pickerColor
+                                ..strokeWidth = customStrokeWidth
+                          ));
                         });
 
                       },
                       onPanStart: (details) {
                         setState(() {
-                          startIndex = 0 ;
+//                          startIndex = 0 ;
                           pointsList.add(DrawingPoints(
                               points: details.localPosition,
                               paint: Paint()
@@ -89,17 +97,26 @@ class _DrawingPageState extends State<DrawingPage> {
                                 ..color = pickerColor
                                 ..strokeWidth = 6.0
                           ));
-                          startIndex = pointsList.length-1;
-//                          sendMessage();
+                          tempList.add(DrawingPoints(
+                              points: details.localPosition,
+                              paint: Paint()
+                                ..strokeCap = strokeCap
+                                ..isAntiAlias = true
+                                ..color = pickerColor
+                                ..strokeWidth = customStrokeWidth
+                          ));
+//                          startIndex = pointsList.length-1;
                         });
 
                       },
                       onPanEnd: (details) {
                         setState(() {
-                          lastIndex = 0 ;
+//                          lastIndex = 0 ;
                           pointsList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
-                          lastIndex = pointsList.length-1;
-                          sendMessage(startIndex, lastIndex);
+                          tempList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
+                          sendMessage();
+                          tempList.clear();
+//                          lastIndex = pointsList.length-1;
                         });
                       },
 
@@ -160,13 +177,12 @@ class _DrawingPageState extends State<DrawingPage> {
                   builder: (context, snapshot) {
                     if(snapshot.hasData && !snapshot.hasError){
                       String receivedData = snapshot.data.toString();
-                      print(receivedData);
-                      receivedMessage(receivedData);
-                      return Text(snapshot.data.toString());
+                      tempList = receivedMessage(receivedData);
+                      print(tempList);
+                      return Text("tempList");
                     }
                     else
                       return Text("No Data");
-
               }
           )
           ),
@@ -176,27 +192,25 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 
   //  send to server
-  void sendMessage(int startIndex, int lastIndex){
+  void sendMessage(){
     DrawingPoints pointData;
-    List<DrawingPoints> sublist = pointsList.sublist(startIndex,lastIndex);
-    final map = sublist.asMap();
-    map.forEach((key, value) {
-      pointData = value;
-      Map<String, dynamic> map = pointData.toJson();
-      String jsonPointData = jsonEncode(map);
-      channel.sink.add(jsonPointData);
-    });
-
+//    pointData = pointsList[i];
+//    print(pointsList);
+    List mappedlist = tempList.map((e) => e.toJson()).toList();
+//    print(mappedlist);
+//    Map<String, dynamic> map = pointData.toJson();
+    String jsonPointData = jsonEncode(mappedlist);
+    print("Sent Message");
+    print(jsonPointData);
+    print("**********************");
+    channel.sink.add(jsonPointData);
   }
-  
-//  receive from server
-  void receivedMessage(String receivedData){
-    DrawingPoints drawingPointsObj, myObj;
-//    print(receivedData);
-    Map<String, dynamic> map = jsonDecode(receivedData);
-    myObj = DrawingPoints.fromJson(map);
-//    print(myObj.points);
-//    print(myObj.color);
+
+  List<DrawingPoints> receivedMessage(String receivedData){
+    List<DrawingPoints> decodedData;
+    Iterable i = jsonDecode(receivedData);
+    decodedData =(i.map((e) => DrawingPoints.fromJson(e)).toList());
+    return decodedData;
   }
 
   @override
@@ -205,6 +219,7 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 
 }
+
 
 //Painting is done here
 class Drawing extends CustomPainter {
@@ -228,15 +243,10 @@ class Drawing extends CustomPainter {
     }
   }
 
-//  Eraser Function
-
-
   @override
   bool shouldRepaint(Drawing oldDelegate) => true;
 }
 
-
-@JsonSerializable(nullable: false)
 class DrawingPoints {
   Paint paint;
   Color color;
