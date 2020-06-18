@@ -1,31 +1,60 @@
-import 'dart:ui';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutterapp/src/widgets/drawingpage.dart';
 
-class HomePage extends StatelessWidget {
+class Ip{
+  final String ip;
+
+  Ip({this.ip});
+}
+
+class HomePage extends StatefulWidget {
   HomePage({Key key, this.title}) : super(key:key);
   final String title;
 
   @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  Ip ipObj;
+  var _textController = new TextEditingController();
+
+  @override
   Widget build(BuildContext context) {
+    ipObj = Ip(ip: "ws://192.168.225.220:6969/data");
     return Scaffold(
       appBar: AppBar(
         title: Text('Pictionary'),
         centerTitle: true,
       ),
       body: Center(
-        child: FlatButton(
-          onPressed: () {
-            return (Navigator.of(context).pushNamed('/drawingpage'));
-          },
-          child: Text('Start Game'),
-          color: Colors.orangeAccent,
-          splashColor: Colors.green,
 
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            TextField(
+              controller: _textController,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: "Default ip sample: -> "+ipObj.ip,
+              ),
+            ),
+            RaisedButton(
+              onPressed: () {
+                if(_textController.text.isNotEmpty){
+                  ipObj = Ip(ip: _textController.text);
+                }
+                var route = MaterialPageRoute(builder: (context) => DrawingPage(ipObj: ipObj));
+                return Navigator.push(context, route);
+              },
+              child: Text('Start Game'),
+              color: Colors.orangeAccent,
+              splashColor: Colors.green,
+            ),
+          ]
         ),
       ),
     );
   }
-
 }

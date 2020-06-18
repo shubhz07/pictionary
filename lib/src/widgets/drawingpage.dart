@@ -3,25 +3,31 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-
-final WebSocketChannel channel = IOWebSocketChannel.connect("ws://192.168.225.220:6969/test");
+import 'package:flutterapp/src/widgets/homePage.dart';
 
 class DrawingPage extends StatefulWidget {
-  @override
-  _DrawingPageState createState() => _DrawingPageState();
+  final Ip ipObj;
+  DrawingPage({Key key, @required this.ipObj}) : super(key: key);
+  _DrawingPageState createState() => _DrawingPageState(ipVal: ipObj.ip);
 }
 
+double customStrokeWidth = 4;
+
 class _DrawingPageState extends State<DrawingPage> {
-  List<DrawingPoints> pointsList = List();
-  List<DrawingPoints> tempList = List();
-  StrokeCap strokeCap = StrokeCap.butt;
-  PaintingContext paintingContext;
+  String ipVal;
+  IOWebSocketChannel channel;
   Color pickerColor = new Color(0xff443a49);
-  double customStrokeWidth = 4;
-  String drawingKey;
-//  int startIndex, lastIndex;
+  StrokeCap strokeCap = StrokeCap.round;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  Stream<dynamic> _stream;
+
+  _DrawingPageState({Key key, this.ipVal});
+
+  List<DrawingPoints> userDrawnList = List();
+  List<DrawingPoints> tempList = List();
+  List<DrawingPoints> tempListServer = List();
+  List<DrawingPoints> serverDrawnList = List();
 
 // Color selection is done here
   void selectedColor(){
@@ -30,25 +36,56 @@ class _DrawingPageState extends State<DrawingPage> {
         context: context,
         child: AlertDialog(
           title: const Text('Pick a color!'),
-          content: SingleChildScrollView(
-            child: ColorPicker(
-              pickerColor: pickerColor,
-              onColorChanged: (color){
-                setState(() {
-                  pickerColor = color;
-                });
-              },
-            ),
+          content: Stack(
+            children: [
+              ColorPicker(
+                pickerColor: pickerColor,
+                onColorChanged: (color) {
+                  setState(() {
+                    pickerColor = color;
+                  });
+                },
+              ),
+              Positioned(bottom: 10,right: 80, child: RaisedButton(color: Colors.blue,onPressed: () => Navigator.pop(context), child: Text("Close")))
+            ]
           ),
         )
     );
   }
-  
+
+  @override
+  void initState() {
+    super.initState();
+    channel = IOWebSocketChannel.connect(ipVal);
+    _stream = channel.stream;
+//    _stream = listenStream();
+  }
+
+//Stream<dynamic> listenStream() async*{
+//    while(true){
+//      var streamData;
+//      channel.stream.forEach((data) {
+//        tempList = receivedMessage(data);
+//        print("************************************");
+//        print("Received Message");
+//        print(tempList.length.toString());
+//        print(data);
+//        print("************************************");
+//        tempList.forEach((element) => serverDrawnList.add(element));
+//        tempList.clear();
+//        streamData= data;
+//      });
+//      yield streamData;
+//    }
+//}
+
   @override
   Widget build(BuildContext context) {
     Color canvasBackgroundColor = Colors.grey;
-    return Scaffold(
+    final snackBar = SnackBar(content: Text(ipVal), backgroundColor: Colors.red);
 
+    return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
         title: Text('Pictionary'),
         centerTitle: true,
@@ -63,75 +100,77 @@ class _DrawingPageState extends State<DrawingPage> {
           Expanded(
             child: Stack(
                 children: <Widget>[
+//              Gesture Detector
                   Positioned(
                     child: GestureDetector(
+                      excludeFromSemantics: true,
                       onPanUpdate: (details) {
-                        setState( () {
-                          pointsList.add(DrawingPoints(
-                              points: details.localPosition,
-                              paint: Paint()
-                                ..strokeCap = strokeCap
-                                ..isAntiAlias = true
-                                ..color = pickerColor
-                                ..strokeWidth = customStrokeWidth
-                          ));
-                          tempList.add(DrawingPoints(
-                              points: details.localPosition,
-                              paint: Paint()
-                                ..strokeCap = strokeCap
-                                ..isAntiAlias = true
-                                ..color = pickerColor
-                                ..strokeWidth = customStrokeWidth
-                          ));
-                        });
-
-                      },
-                      onPanStart: (details) {
                         setState(() {
-//                          startIndex = 0 ;
-                          pointsList.add(DrawingPoints(
-                              points: details.localPosition,
-                              paint: Paint()
+                          userDrawnList.add(DrawingPoints(points: details.localPosition, paint: Paint()
                                 ..strokeCap = strokeCap
-                                ..isAntiAlias = true
-                                ..color = pickerColor
-                                ..strokeWidth = 6.0
-                          ));
-                          tempList.add(DrawingPoints(
-                              points: details.localPosition,
-                              paint: Paint()
-                                ..strokeCap = strokeCap
-                                ..isAntiAlias = true
                                 ..color = pickerColor
                                 ..strokeWidth = customStrokeWidth
                           ));
-//                          startIndex = pointsList.length-1;
-                        });
 
+                          tempList.add(DrawingPoints(points: details.localPosition, paint: Paint()
+                                ..strokeCap = strokeCap
+                                ..color = pickerColor
+                                ..strokeWidth = customStrokeWidth
+                          ));
+                        });
                       },
                       onPanEnd: (details) {
+//                        Future.delayed(const Duration(milliseconds: 100));
                         setState(() {
-//                          lastIndex = 0 ;
-                          pointsList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
-                          tempList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
-                          sendMessage();
-                          tempList.clear();
-//                          lastIndex = pointsList.length-1;
+                        userDrawnList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
+                        tempList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
+//                          print("**********************************");
+//                          print("PointsList"+ pointsList.length.toString());
+//                          print("TempList"+ tempList.length.toString());
+//                          print("**********************************");
+                          print(tempList);
+                        sendMessage();
+                        tempList.clear();
                         });
                       },
-
-                      child: Container(
-
-                        child: ClipRect(
-
+                      child: Column(
+                        children:[
+                        Container(
+                          color: Colors.grey.shade300,
                           child: CustomPaint(
-                            size: Size.infinite,
+                            size: Size.fromHeight(300),
                             painter: Drawing(
-                              pointsList: pointsList,
+                              pointsListDrawData: userDrawnList,
                             ),
                           ),
                         ),
-                        color: canvasBackgroundColor,
+                        Container(
+                          color: Colors.grey.shade400,
+                          child: StreamBuilder(
+                            stream: _stream,
+                            builder: (context, snapshot){
+                              if(snapshot.hasError){
+                                return Text("Error");
+                              }
+                              else if(snapshot.connectionState == ConnectionState.waiting){
+                                return CircularProgressIndicator();
+                              }
+                              else{
+                                tempListServer.clear();
+                                tempListServer = receivedMessage(snapshot.data);
+                                serverDrawnList = serverDrawnList + tempListServer;
+                                return CustomPaint(
+                                  size: Size.fromHeight(300),
+                                  painter: Drawing(
+                                    pointsListDrawData: serverDrawnList,
+                                  ),
+                                );
+                              }
+
+                            },
+                          ),
+                        ),
+                        ],
                       ),
                     ),
                   ),
@@ -157,10 +196,11 @@ class _DrawingPageState extends State<DrawingPage> {
                     child: FloatingActionButton(
                       heroTag: "Eraser",
                       onPressed: () {
-                        setState(() {
-                          pickerColor = canvasBackgroundColor;
-                          customStrokeWidth = 50;
-                        });
+//                        pickerColor = canvasBackgroundColor;
+//                        customStrokeWidth = 50;
+                          tempList.clear();
+                          userDrawnList.clear();
+                          serverDrawnList.clear();
                       },
                       child: Icon(Icons.stop),
                       backgroundColor: Colors.lightGreen,
@@ -170,22 +210,7 @@ class _DrawingPageState extends State<DrawingPage> {
                 ]
             ),
           ),
-          Expanded(
-              child:
-              StreamBuilder(
-                  stream: channel.stream,
-                  builder: (context, snapshot) {
-                    if(snapshot.hasData && !snapshot.hasError){
-                      String receivedData = snapshot.data.toString();
-                      tempList = receivedMessage(receivedData);
-                      print(tempList);
-                      return Text("tempList");
-                    }
-                    else
-                      return Text("No Data");
-              }
-          )
-          ),
+          RaisedButton(onPressed: () => _scaffoldKey.currentState.showSnackBar(snackBar),child: Text("Check IP"),),
         ],
       ),
     );
@@ -193,29 +218,32 @@ class _DrawingPageState extends State<DrawingPage> {
 
   //  send to server
   void sendMessage(){
-    DrawingPoints pointData;
-//    pointData = pointsList[i];
-//    print(pointsList);
     List mappedlist = tempList.map((e) => e.toJson()).toList();
-//    print(mappedlist);
-//    Map<String, dynamic> map = pointData.toJson();
     String jsonPointData = jsonEncode(mappedlist);
+    print("****************************************************************************************");
     print("Sent Message");
+    print("TempList len:" + tempList.length.toString());
     print(jsonPointData);
-    print("**********************");
+    print("******************************************************************************************");
     channel.sink.add(jsonPointData);
   }
 
   List<DrawingPoints> receivedMessage(String receivedData){
     List<DrawingPoints> decodedData;
-    Iterable i = jsonDecode(receivedData);
-    decodedData =(i.map((e) => DrawingPoints.fromJson(e)).toList());
+    List<dynamic> mapsList = jsonDecode(receivedData);
+    decodedData = mapsList.map((e) => DrawingPoints.fromJson(e)).toList();
+//  convert map to dart object and add it in a list?
+//    decodedData = i.map((e) => DrawingPoints.fromJson(e)).toList();
+//    print("Received Message");
+//    print(decodedData);
+//    print("***********************");
     return decodedData;
   }
 
   @override
   void dispose(){
     super.dispose();
+    channel.sink.close();
   }
 
 }
@@ -223,25 +251,27 @@ class _DrawingPageState extends State<DrawingPage> {
 
 //Painting is done here
 class Drawing extends CustomPainter {
-  Drawing({this.pointsList});
-  List<DrawingPoints> pointsList;
-  List<Offset> offsetPoints = List();
+  Drawing({this.pointsListDrawData});
+
+  List<DrawingPoints> pointsListDrawData;
 
   @override
   void paint(Canvas canvas, Size size){
-    for(int i=0; i < pointsList.length-1; i++){
+    for(int i=0; i < pointsListDrawData.length; i++){
 //      Drawing lines when pan action
-      if(pointsList[i].points != Offset(0.0,0.0) && pointsList[i+1].points != Offset(0.0,0.0)){
-        canvas.drawLine(pointsList[i].points, pointsList[i+1].points, pointsList[i].paint);
+      if(shouldDrawLine(i)){
+        canvas.drawLine(pointsListDrawData[i].points, pointsListDrawData[i+1].points, pointsListDrawData[i].paint);
       }
 //      Drawing points when user taps
-      else if (pointsList[i].points != Offset(0.0,0.0) && pointsList[i + 1].points == Offset(0.0,0.0)) {
-        offsetPoints.clear();
-        offsetPoints.add(pointsList[i].points);
-        canvas.drawPoints(PointMode.points, offsetPoints, pointsList[i].paint);
+      else if (shouldDrawPoint(i)) {
+        canvas.drawPoints(PointMode.points,[pointsListDrawData[i].points] , pointsListDrawData[i].paint);
       }
     }
   }
+
+  bool shouldDrawPoint(int i) => pointsListDrawData[i].points != Offset(0.0,0.0) && pointsListDrawData.length > i+1 && pointsListDrawData[i + 1].points == Offset(0.0,0.0);
+
+  bool shouldDrawLine(int i) => pointsListDrawData[i].points != Offset(0.0,0.0) && pointsListDrawData.length > i+1 && pointsListDrawData[i+1].points != Offset(0.0,0.0);
 
   @override
   bool shouldRepaint(Drawing oldDelegate) => true;
@@ -249,14 +279,17 @@ class Drawing extends CustomPainter {
 
 class DrawingPoints {
   Paint paint;
-  Color color;
   Offset points;
   DrawingPoints({this.points, this.paint});
 
-  DrawingPoints.fromJson(Map<String,dynamic> json){
-        Color color;
-        this.points = Offset(json['dx'],json['dy']);
-        this.color = Color(json['colorvalue']);
+  factory DrawingPoints.fromJson(Map<String,dynamic> json){
+    return DrawingPoints(
+        points : Offset(json['dx'],json['dy']),
+        paint : Paint()
+      ..color = Color(json["colorvalue"])
+      ..strokeWidth = customStrokeWidth
+    );
+
   }
 
   Map<String,dynamic> toJson() {
