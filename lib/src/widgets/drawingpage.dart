@@ -28,6 +28,8 @@ class _DrawingPageState extends State<DrawingPage> {
   List<DrawingPoints> tempList = List();
   List<DrawingPoints> tempListServer = List();
   List<DrawingPoints> serverDrawnList = List();
+  List<DrawingPoints> endPointList = List();
+  List<DrawingPoints> combinedList = List();
 
 // Color selection is done here
   void selectedColor(){
@@ -58,6 +60,7 @@ class _DrawingPageState extends State<DrawingPage> {
     super.initState();
     channel = IOWebSocketChannel.connect(ipVal);
     _stream = channel.stream;
+    endPointList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
 //    _stream = listenStream();
   }
 
@@ -133,44 +136,38 @@ class _DrawingPageState extends State<DrawingPage> {
                         tempList.clear();
                         });
                       },
-                      child: Column(
-                        children:[
-                        Container(
-                          color: Colors.grey.shade300,
-                          child: CustomPaint(
-                            size: Size.fromHeight(300),
-                            painter: Drawing(
-                              pointsListDrawData: userDrawnList,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          color: Colors.grey.shade400,
-                          child: StreamBuilder(
-                            stream: _stream,
-                            builder: (context, snapshot){
-                              if(snapshot.hasError){
-                                return Text("Error");
-                              }
+                      child: Container(
+                        color: Colors.grey.shade400,
+                        child: StreamBuilder(
+                          stream: _stream,
+                          builder: (context, snapshot){
+                            if(snapshot.hasError){
+                              return Text("Error");
+                            }
                               else if(snapshot.connectionState == ConnectionState.waiting){
-                                return CircularProgressIndicator();
+                              return CustomPaint(
+                                size: Size.infinite,
+                                painter: Drawing(
+                                  pointsListDrawData: userDrawnList,
+                                ),
+                              );
                               }
-                              else{
-                                tempListServer.clear();
-                                tempListServer = receivedMessage(snapshot.data);
-                                serverDrawnList = serverDrawnList + tempListServer;
-                                return CustomPaint(
-                                  size: Size.fromHeight(300),
-                                  painter: Drawing(
-                                    pointsListDrawData: serverDrawnList,
-                                  ),
-                                );
-                              }
+                            else{
+                              tempListServer.clear();
+                              tempListServer = receivedMessage(snapshot.data);
+                              serverDrawnList = serverDrawnList+ endPointList + tempListServer;
+                              combinedList.clear();
+                              combinedList = userDrawnList + serverDrawnList;
+                              return CustomPaint(
+                                size: Size.infinite,
+                                painter: Drawing(
+                                  pointsListDrawData: combinedList,
+                                ),
+                              );
+                            }
 
-                            },
-                          ),
+                          },
                         ),
-                        ],
                       ),
                     ),
                   ),
@@ -201,6 +198,8 @@ class _DrawingPageState extends State<DrawingPage> {
                           tempList.clear();
                           userDrawnList.clear();
                           serverDrawnList.clear();
+                          tempListServer.clear();
+                          combinedList.clear();
                       },
                       child: Icon(Icons.stop),
                       backgroundColor: Colors.lightGreen,
