@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
@@ -21,6 +22,7 @@ class _DrawingPageState extends State<DrawingPage> {
   StrokeCap strokeCap = StrokeCap.round;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   Stream<dynamic> _stream;
+  StreamSubscription<dynamic> subscription;
 
   _DrawingPageState({Key key, this.ipVal});
 
@@ -59,28 +61,19 @@ class _DrawingPageState extends State<DrawingPage> {
   void initState() {
     super.initState();
     channel = IOWebSocketChannel.connect(ipVal);
-    _stream = channel.stream;
+    _stream = channel.stream.map((data) => processStreamData(data));
     endPointList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
-//    _stream = listenStream();
-  }
+    }
 
-//Stream<dynamic> listenStream() async*{
-//    while(true){
-//      var streamData;
-//      channel.stream.forEach((data) {
-//        tempList = receivedMessage(data);
-//        print("************************************");
-//        print("Received Message");
-//        print(tempList.length.toString());
-//        print(data);
-//        print("************************************");
-//        tempList.forEach((element) => serverDrawnList.add(element));
-//        tempList.clear();
-//        streamData= data;
-//      });
-//      yield streamData;
-//    }
-//}
+
+  void processStreamData(data) {
+    print("Received Data: " + data);
+    tempListServer.clear();
+    combinedList.clear();
+    tempListServer = receivedMessage(data);
+    serverDrawnList = serverDrawnList + endPointList + tempListServer;
+    combinedList = userDrawnList + serverDrawnList;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,15 +116,9 @@ class _DrawingPageState extends State<DrawingPage> {
                         });
                       },
                       onPanEnd: (details) {
-//                        Future.delayed(const Duration(milliseconds: 100));
                         setState(() {
                         userDrawnList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
                         tempList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
-//                          print("**********************************");
-//                          print("PointsList"+ pointsList.length.toString());
-//                          print("TempList"+ tempList.length.toString());
-//                          print("**********************************");
-                          print(tempList);
                         sendMessage();
                         tempList.clear();
                         });
@@ -140,24 +127,19 @@ class _DrawingPageState extends State<DrawingPage> {
                         color: Colors.grey.shade400,
                         child: StreamBuilder(
                           stream: _stream,
-                          builder: (context, snapshot){
-                            if(snapshot.hasError){
-                              return Text("Error");
-                            }
-                              else if(snapshot.connectionState == ConnectionState.waiting){
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              print("****************************************************************************************");
+                              print("STREAM ERROR: " + snapshot.error);
+                              print("****************************************************************************************");
                               return CustomPaint(
                                 size: Size.infinite,
                                 painter: Drawing(
                                   pointsListDrawData: userDrawnList,
                                 ),
                               );
-                              }
-                            else{
-                              tempListServer.clear();
-                              tempListServer = receivedMessage(snapshot.data);
-                              serverDrawnList = serverDrawnList+ endPointList + tempListServer;
-                              combinedList.clear();
-                              combinedList = userDrawnList + serverDrawnList;
+                            }
+                            else if(snapshot.hasData) {
                               return CustomPaint(
                                 size: Size.infinite,
                                 painter: Drawing(
@@ -165,7 +147,16 @@ class _DrawingPageState extends State<DrawingPage> {
                                 ),
                               );
                             }
-
+//                          No data on stream
+                            else
+                              {
+                                return CustomPaint(
+                                  size: Size.infinite,
+                                  painter: Drawing(
+                                    pointsListDrawData: userDrawnList,
+                                  ),
+                                );
+                              }
                           },
                         ),
                       ),
@@ -193,8 +184,6 @@ class _DrawingPageState extends State<DrawingPage> {
                     child: FloatingActionButton(
                       heroTag: "Eraser",
                       onPressed: () {
-//                        pickerColor = canvasBackgroundColor;
-//                        customStrokeWidth = 50;
                           tempList.clear();
                           userDrawnList.clear();
                           serverDrawnList.clear();
@@ -223,6 +212,7 @@ class _DrawingPageState extends State<DrawingPage> {
     print("Sent Message");
     print("TempList len:" + tempList.length.toString());
     print(jsonPointData);
+    print("UserDrawnList len:" + userDrawnList.length.toString());
     print("******************************************************************************************");
     channel.sink.add(jsonPointData);
   }
@@ -231,11 +221,6 @@ class _DrawingPageState extends State<DrawingPage> {
     List<DrawingPoints> decodedData;
     List<dynamic> mapsList = jsonDecode(receivedData);
     decodedData = mapsList.map((e) => DrawingPoints.fromJson(e)).toList();
-//  convert map to dart object and add it in a list?
-//    decodedData = i.map((e) => DrawingPoints.fromJson(e)).toList();
-//    print("Received Message");
-//    print(decodedData);
-//    print("***********************");
     return decodedData;
   }
 
@@ -243,6 +228,7 @@ class _DrawingPageState extends State<DrawingPage> {
   void dispose(){
     super.dispose();
     channel.sink.close();
+    subscription.cancel();
   }
 
 }
