@@ -22,7 +22,7 @@ class _DrawingPageState extends State<DrawingPage> {
   StrokeCap strokeCap = StrokeCap.round;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   Stream<dynamic> _stream;
-  StreamSubscription<dynamic> subscription;
+  bool erase = false;
 
   _DrawingPageState({Key key, this.ipVal});
 
@@ -32,6 +32,8 @@ class _DrawingPageState extends State<DrawingPage> {
   List<DrawingPoints> serverDrawnList = List();
   List<DrawingPoints> endPointList = List();
   List<DrawingPoints> combinedList = List();
+  List mappedlist = List();
+  List<DrawingPoints> decodedData;
 
 // Color selection is done here
   void selectedColor(){
@@ -69,10 +71,16 @@ class _DrawingPageState extends State<DrawingPage> {
   void processStreamData(data) {
     print("Received Data: " + data);
     tempListServer.clear();
-    combinedList.clear();
     tempListServer = receivedMessage(data);
     serverDrawnList = serverDrawnList + endPointList + tempListServer;
-    combinedList = userDrawnList + serverDrawnList;
+    if(erase){
+      tempList.clear();
+      userDrawnList.clear();
+      serverDrawnList.clear();
+      tempListServer.clear();
+      erase = false;
+    }
+    return data;
   }
 
   @override
@@ -139,24 +147,24 @@ class _DrawingPageState extends State<DrawingPage> {
                                 ),
                               );
                             }
-                            else if(snapshot.hasData) {
-                              return CustomPaint(
-                                size: Size.infinite,
-                                painter: Drawing(
-                                  pointsListDrawData: combinedList,
-                                ),
-                              );
-                            }
 //                          No data on stream
-                            else
+                            else if(snapshot.hasData)
                               {
                                 return CustomPaint(
                                   size: Size.infinite,
                                   painter: Drawing(
-                                    pointsListDrawData: userDrawnList,
+                                    pointsListDrawData: userDrawnList + serverDrawnList,
                                   ),
                                 );
                               }
+                            else{
+                              return CustomPaint(
+                                size: Size.infinite,
+                                painter: Drawing(
+                                  pointsListDrawData: userDrawnList + serverDrawnList,
+                                ),
+                              );
+                            }
                           },
                         ),
                       ),
@@ -184,11 +192,15 @@ class _DrawingPageState extends State<DrawingPage> {
                     child: FloatingActionButton(
                       heroTag: "Eraser",
                       onPressed: () {
+                        setState(() {
+                          erase = true;
                           tempList.clear();
                           userDrawnList.clear();
                           serverDrawnList.clear();
                           tempListServer.clear();
-                          combinedList.clear();
+                          sendMessage();
+                          erase = false;
+                        });
                       },
                       child: Icon(Icons.stop),
                       backgroundColor: Colors.lightGreen,
@@ -206,8 +218,15 @@ class _DrawingPageState extends State<DrawingPage> {
 
   //  send to server
   void sendMessage(){
-    List mappedlist = tempList.map((e) => e.toJson()).toList();
-    String jsonPointData = jsonEncode(mappedlist);
+    if(tempList.isNotEmpty){
+      mappedlist = tempList.map((e) => e.toJson()).toList();
+    }else{
+      mappedlist = List();
+    }
+    Map<String, dynamic> key = new Map<String,dynamic>();
+    key["PointsList"] = mappedlist;
+    key["Erase"] = erase;
+    String jsonPointData = jsonEncode(key);
     print("****************************************************************************************");
     print("Sent Message");
     print("TempList len:" + tempList.length.toString());
@@ -218,9 +237,13 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 
   List<DrawingPoints> receivedMessage(String receivedData){
-    List<DrawingPoints> decodedData;
-    List<dynamic> mapsList = jsonDecode(receivedData);
-    decodedData = mapsList.map((e) => DrawingPoints.fromJson(e)).toList();
+    Map<String, dynamic> key = new Map<String,dynamic>();
+    key = jsonDecode(receivedData);
+    List<dynamic> mapsList = key["PointsList"];
+    erase = key["Erase"];
+    if(mapsList.isNotEmpty){
+      decodedData = mapsList.map((e) => DrawingPoints.fromJson(e)).toList();
+    }
     return decodedData;
   }
 
@@ -228,7 +251,6 @@ class _DrawingPageState extends State<DrawingPage> {
   void dispose(){
     super.dispose();
     channel.sink.close();
-    subscription.cancel();
   }
 
 }

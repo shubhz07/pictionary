@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutterapp/src/widgets/drawingpage.dart';
+import 'package:flutterapp/src/widgets/aipage.dart';
 
 class Ip{
   final String ip;
@@ -40,6 +41,7 @@ class _HomePageState extends State<HomePage> {
                 labelText: "Default ip sample: -> "+ipObj.ip,
               ),
             ),
+//          Multiplayer page
             RaisedButton(
               onPressed: () {
                 if(_textController.text.isNotEmpty){
@@ -48,8 +50,18 @@ class _HomePageState extends State<HomePage> {
                 var route = MaterialPageRoute(builder: (context) => DrawingPage(ipObj: ipObj));
                 return Navigator.push(context, route);
               },
-              child: Text('Start Game'),
+              child: Text('Play Online'),
               color: Colors.orangeAccent,
+              splashColor: Colors.green,
+            ),
+//          AI page
+            RaisedButton(
+              onPressed: () {
+                var route = MaterialPageRoute(builder: (context) => AIPage(ipObj: ipObj));
+                return Navigator.push(context, route);
+              },
+              child: Text('Play with AI!'),
+              color: Colors.blueAccent,
               splashColor: Colors.green,
             ),
           ]
