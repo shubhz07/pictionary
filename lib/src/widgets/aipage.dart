@@ -28,7 +28,6 @@ class _AIPageState extends State<AIPage> {
   _AIPageState({Key key, this.ipVal});
 
   List<DrawingPoints> tempListServer = List();
-  List mappedlist = List();
   List<DrawingPoints> decodedData;
 
 

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutterapp/src/widgets/homePage.dart';
+import 'package:flutterapp/src/models/drawingpoints.dart';
+import 'package:flutterapp/src/models/custompainter.dart';
 
 class DrawingPage extends StatefulWidget {
   final Ip ipObj;
@@ -31,7 +33,6 @@ class _DrawingPageState extends State<DrawingPage> {
   List<DrawingPoints> tempListServer = List();
   List<DrawingPoints> serverDrawnList = List();
   List<DrawingPoints> endPointList = List();
-  List<DrawingPoints> combinedList = List();
   List mappedlist = List();
   List<DrawingPoints> decodedData;
 
@@ -66,7 +67,6 @@ class _DrawingPageState extends State<DrawingPage> {
     _stream = channel.stream.map((data) => processStreamData(data));
     endPointList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
     }
-
 
   void processStreamData(data) {
     print("Received Data: " + data);
@@ -210,7 +210,7 @@ class _DrawingPageState extends State<DrawingPage> {
                 ]
             ),
           ),
-          RaisedButton(onPressed: () => _scaffoldKey.currentState.showSnackBar(snackBar),child: Text("Check IP"),),
+//          RaisedButton(onPressed: () => _scaffoldKey.currentState.showSnackBar(snackBar),child: Text("Check IP"),),
         ],
       ),
     );
@@ -253,57 +253,4 @@ class _DrawingPageState extends State<DrawingPage> {
     channel.sink.close();
   }
 
-}
-
-
-//Painting is done here
-class Drawing extends CustomPainter {
-  Drawing({this.pointsListDrawData});
-
-  List<DrawingPoints> pointsListDrawData;
-
-  @override
-  void paint(Canvas canvas, Size size){
-    for(int i=0; i < pointsListDrawData.length; i++){
-//      Drawing lines when pan action
-      if(shouldDrawLine(i)){
-        canvas.drawLine(pointsListDrawData[i].points, pointsListDrawData[i+1].points, pointsListDrawData[i].paint);
-      }
-//      Drawing points when user taps
-      else if (shouldDrawPoint(i)) {
-        canvas.drawPoints(PointMode.points,[pointsListDrawData[i].points] , pointsListDrawData[i].paint);
-      }
-    }
-  }
-
-  bool shouldDrawPoint(int i) => pointsListDrawData[i].points != Offset(0.0,0.0) && pointsListDrawData.length > i+1 && pointsListDrawData[i + 1].points == Offset(0.0,0.0);
-
-  bool shouldDrawLine(int i) => pointsListDrawData[i].points != Offset(0.0,0.0) && pointsListDrawData.length > i+1 && pointsListDrawData[i+1].points != Offset(0.0,0.0);
-
-  @override
-  bool shouldRepaint(Drawing oldDelegate) => true;
-}
-
-class DrawingPoints {
-  Paint paint;
-  Offset points;
-  DrawingPoints({this.points, this.paint});
-
-  factory DrawingPoints.fromJson(Map<String,dynamic> json){
-    return DrawingPoints(
-        points : Offset(json['dx'],json['dy']),
-        paint : Paint()
-      ..color = Color(json["colorvalue"])
-      ..strokeWidth = customStrokeWidth
-    );
-
-  }
-
-  Map<String,dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data["dx"] = points.dx;
-    data["dy"] = points.dy;
-    data["colorvalue"] = paint.color.value;
-    return data;
-  }
 }
