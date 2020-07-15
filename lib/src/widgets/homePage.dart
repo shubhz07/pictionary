@@ -19,7 +19,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   Ip ipObj;
-  var _textController = new TextEditingController();
+  var _textControllerIP = new TextEditingController();
+  var _textUserName = new TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -30,27 +31,51 @@ class _HomePageState extends State<HomePage> {
         centerTitle: true,
       ),
       body: Center(
-
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             TextField(
-              controller: _textController,
+              controller: _textUserName,
               decoration: InputDecoration(
                 border: OutlineInputBorder(),
-                labelText: "Default ip sample: -> "+ipObj.ip,
+                labelText: "Enter UserName*",
               ),
             ),
+            SizedBox(height: 10,),
+            TextField(
+              controller: _textControllerIP,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: "Enter IP",
+              ),
+            ),
+            SizedBox(height: 10,),
 //          Multiplayer page
             RaisedButton(
               onPressed: () {
-                if(_textController.text.isNotEmpty){
-                  ipObj = Ip(ip: _textController.text);
+                if(_textControllerIP.text.isNotEmpty){
+                  ipObj = Ip(ip: _textControllerIP.text);
                 }
-                var route = MaterialPageRoute(builder: (context) => DrawingPage(ipObj: ipObj));
-                return Navigator.push(context, route);
+                if(_textUserName.text.isNotEmpty){
+                  var route = MaterialPageRoute(builder: (context) => DrawingPage(ipObj: ipObj, userName: _textUserName.text,));
+                  return Navigator.push(context, route);
+                }
+                else{
+                  return showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: Text("Oops!"),
+                      content: Text("Looks like you forgot to add UserName!"),
+                      actions: <Widget>[
+                        RaisedButton(onPressed: () async {Navigator.pop(context);}, child: Text("Ok", style: TextStyle(color:Colors.black),), color: Colors.grey,),
+                      ],
+                      elevation: 24.0,
+                    ),
+                    barrierDismissible: true,
+                  );
+                }
               },
-              child: Text('Play Online'),
+              child: Text('Play Online With Friends!'),
               color: Colors.orangeAccent,
               splashColor: Colors.green,
             ),
@@ -60,7 +85,7 @@ class _HomePageState extends State<HomePage> {
                 var route = MaterialPageRoute(builder: (context) => AIPage(ipObj: ipObj));
                 return Navigator.push(context, route);
               },
-              child: Text('Play with AI!'),
+              child: Text('Play With AI!'),
               color: Colors.blueAccent,
               splashColor: Colors.green,
             ),

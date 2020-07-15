@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
+import 'package:flutter/rendering.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutterapp/src/widgets/homePage.dart';
@@ -13,34 +14,52 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'dart:math' as math;
 import 'package:flutterapp/src/dialogs/width_dialog.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
+import 'package:dash_chat/dash_chat.dart';
 
 class DrawingPage extends StatefulWidget {
   final Ip ipObj;
-  DrawingPage({Key key, @required this.ipObj}) : super(key: key);
-  _DrawingPageState createState() => _DrawingPageState(ipVal: ipObj.ip);
+  final String userName;
+  DrawingPage({Key key, @required this.ipObj, @required this.userName}) : super(key: key);
+  _DrawingPageState createState() => _DrawingPageState(ipVal: ipObj.ip, userName: userName);
 }
 
 double customStrokeWidth = 4;
 
 class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin {
   String ipVal;
+  String userName;
+  String send_Message;
+  String received_chat_data ;
+  String received_chat_Message;
+  String receiver_Username;
   IOWebSocketChannel channel;
   Color pickerColor = new Color(0xff443a49);
   StrokeCap strokeCap = StrokeCap.round;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   Stream<dynamic> _stream;
   bool erase = false;
+  var sendMessageController = new TextEditingController();
   AnimationController controller;
+  Map<String, dynamic> send_key = new Map<String,dynamic>();
+  Map<String, dynamic> received_key = new Map<String,dynamic>();
+  Map<String, String> send_chat_key = new Map<String,String>();
+  Map<String, dynamic> received_chat_key = new Map<String,dynamic>();
+  Map<String, dynamic> chat_key = new Map<String, dynamic>();
+  StreamController<dynamic> _chatStreamController = new StreamController();
+  Stream<dynamic> _chatStream;
 
-  _DrawingPageState({Key key, this.ipVal});
+  _DrawingPageState({Key key, this.ipVal, this.userName});
 
   List<DrawingPoints> userDrawnList = List();
   List<DrawingPoints> tempList = List();
   List<DrawingPoints> tempListServer = List();
   List<DrawingPoints> serverDrawnList = List();
   List<DrawingPoints> endPointList = List();
-  List mappedlist = List();
+  List send_mappedlist = List();
+  List<dynamic> received_mapsList;
+  List chatData = List();
   List<DrawingPoints> decodedData;
+  List<String> chatMessage_List = List();
 
 // Color selection is done here
   void selectedColor(){
@@ -76,12 +95,26 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
+    _chatStream = chatStreamFunction();
   }
+
+  Stream<String> chatStreamFunction() async* {
+    _chatStreamController.stream.listen((data) {
+      print("DataReceived: "+data);
+      return data;
+    }, onDone: () {
+      print("Chat Stream Done");
+    }, onError: (error) {
+      print("Chat Stream Error");
+    });
+
+  }
+
 
   void processStreamData(data) {
     print("Received Data: " + data);
     tempListServer.clear();
-    tempListServer = receivedMessage(data);
+    tempListServer = received_From_Server(data);
     serverDrawnList = serverDrawnList + endPointList + tempListServer;
     if(erase){
       tempList.clear();
@@ -112,13 +145,103 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
 //        }),
 //      ),
       body:SlidingUpPanel(
-        panel: Center(
-          child: Text("The entire chat window"),
-        ),
+        panel:Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: <Widget>[
+//            SizedBox(height: 10,),
+            Container(
+              height: 350,
+              child: StreamBuilder<String>(
+                stream: _chatStream,
+                builder:(context, snapshot){
+                  if(snapshot.hasData){
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: chatMessage_List.length,
+                      itemBuilder: (context, index) =>
+                          Card(
+                            child: ListTile(
+//                            leading: Text("$userName  ->",
+//                              style: TextStyle(color: Colors.red),),
+                                title: Text("${chatMessage_List[index]}")
+                            ),
+
+                          ),
+                      reverse: false,
+                      separatorBuilder: (context, index) =>
+                          SizedBox(height: 5,),
+                    );
+                  }
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: chatMessage_List.length,
+                    itemBuilder: (context, index) =>
+                        Card(
+                          child: ListTile(
+//                            leading: Text("$userName  ->",
+//                              style: TextStyle(color: Colors.red),),
+                              title: Text("${chatMessage_List[index]}")
+                          ),
+
+                        ),
+                    reverse: false,
+                    separatorBuilder: (context, index) =>
+                        SizedBox(height: 5,),
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 10,),
+            Stack(
+              children: [
+                Theme(
+                  data: Theme.of(context).copyWith(splashColor: Colors.transparent),
+                  child: TextField(
+                    controller: sendMessageController,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white,
+                      hintText: 'Type a message!',
+                      contentPadding:
+                      const EdgeInsets.only(left: 14.0, bottom: 8.0, top: 8.0),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white),
+                        borderRadius: BorderRadius.circular(25.7),
+                      ),
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.white),
+                        borderRadius: BorderRadius.circular(25.7),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right:7,
+                  child: SizedBox(
+                    width: 60,
+                    child: FlatButton(
+                      onPressed: () {
+                        setState(() {
+                          send_Message = sendMessageController.text;
+                          send_To_Server();
+                          chatMessage_List.add(send_Message);
+                          sendMessageController.clear();
+                        });
+                      },
+                      child: Icon(Icons.send, color: Colors.blue,),
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              ],
+            ),
+            SizedBox(height: 10,),
+          ]
+          ),
         minHeight: 60,
         parallaxEnabled: true,
-        color: Colors.blue.shade300,
-        collapsed: Center(child: Text("Slide up to Chat")),
+        color: Colors.lightGreen.shade300,
+        collapsed: Center(child: Text("Slide up to Chat " + userName)),
         borderRadius: radius,
 
         body: Column(
@@ -151,7 +274,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                           setState(() {
                             userDrawnList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
                             tempList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
-                            sendMessage();
+                            send_To_Server();
                             tempList.clear();
                           });
                         },
@@ -219,7 +342,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                                     userDrawnList.clear();
                                     serverDrawnList.clear();
                                     tempListServer.clear();
-                                    sendMessage();
+                                    send_To_Server();
                                     erase = false;
                                   });
                                 },
@@ -319,17 +442,20 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
     );
   }
 
-  //  send to server
-  void sendMessage(){
+  void send_To_Server(){
     if(tempList.isNotEmpty){
-      mappedlist = tempList.map((e) => e.toJson()).toList();
+      send_mappedlist = tempList.map((e) => e.toJson()).toList();
     }else{
-      mappedlist = List();
+      send_mappedlist = List();
     }
-    Map<String, dynamic> key = new Map<String,dynamic>();
-    key["PointsList"] = mappedlist;
-    key["Erase"] = erase;
-    String jsonPointData = jsonEncode(key);
+    if(send_Message.isNotEmpty){
+      send_chat_key["Message"] = send_Message;
+      send_chat_key["User"] = userName;
+    }
+    send_key["PointsList"] = send_mappedlist;
+    send_key["Erase"] = erase;
+    send_key["Chat"] = send_chat_key;
+    String jsonPointData = jsonEncode(send_key);
     print("****************************************************************************************");
     print("Sent Message");
     print("TempList len:" + tempList.length.toString());
@@ -339,13 +465,20 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
     channel.sink.add(jsonPointData);
   }
 
-  List<DrawingPoints> receivedMessage(String receivedData){
-    Map<String, dynamic> key = new Map<String,dynamic>();
-    key = jsonDecode(receivedData);
-    List<dynamic> mapsList = key["PointsList"];
-    erase = key["Erase"];
-    if(mapsList.isNotEmpty){
-      decodedData = mapsList.map((e) => DrawingPoints.fromJson(e)).toList();
+  List<DrawingPoints> received_From_Server(String receivedData){
+    received_key = jsonDecode(receivedData);
+    received_mapsList = received_key["PointsList"];
+    erase = received_key["Erase"];
+    chat_key = received_key["Chat"];
+//    received_chat_key = jsonDecode(received_chat_data);
+    received_chat_Message = chat_key["Message"];
+    receiver_Username = chat_key["User"];
+    if(receiver_Username.isNotEmpty && received_chat_Message.isNotEmpty){
+      _chatStreamController.sink.add("Chat Message Received");
+      chatMessage_List.add(receiver_Username+"->"+received_chat_Message);
+    }
+    if(received_mapsList.isNotEmpty){
+      decodedData = received_mapsList.map((e) => DrawingPoints.fromJson(e)).toList();
     }
     return decodedData;
   }
