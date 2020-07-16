@@ -6,16 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/rendering.dart';
 import 'package:web_socket_channel/io.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutterapp/src/widgets/homePage.dart';
 import 'package:flutterapp/src/models/drawingpoints.dart';
 import 'package:flutterapp/src/models/custompainter.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'dart:math' as math;
 import 'package:flutterapp/src/dialogs/width_dialog.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
-import 'package:dash_chat/dash_chat.dart';
 import 'package:flutterapp/src/models/userdetails.dart';
+import 'package:flutterapp/src/models/drawing_functionality.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 class DrawingPage extends StatefulWidget {
   final Ip ipObj;
@@ -33,9 +32,10 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
   String received_chat_Message = "";
   String receiver_Username = "";
   IOWebSocketChannel channel;
-  Color pickerColor = new Color(0xff443a49);
   StrokeCap strokeCap = StrokeCap.round;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  StreamController<dynamic> _chatStreamController = new StreamController();
+  Stream<dynamic> _chatStream;
   Stream<dynamic> _stream;
   bool erase = false;
   var sendMessageController = new TextEditingController();
@@ -45,54 +45,19 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
   Map<String, String> send_chat_key = new Map<String,String>();
   Map<String, dynamic> received_chat_key = new Map<String,dynamic>();
   Map<String, dynamic> chat_key = new Map<String, dynamic>();
-  StreamController<dynamic> _chatStreamController = new StreamController();
-  Stream<dynamic> _chatStream;
 
   _DrawingPageState({Key key, this.ipVal, this.userName});
 
-  List<DrawingPoints> userDrawnList = List();
-  List<DrawingPoints> tempList = List();
-  List<DrawingPoints> tempListServer = List();
-  List<DrawingPoints> serverDrawnList = List();
-  List<DrawingPoints> endPointList = List();
-  List send_mappedlist = List();
-  List<dynamic> received_mapsList = List();
-  List chatData = List();
-  List<DrawingPoints> decodedData = List();
-  List<UserDetails> chatMessage_List = List();
 
+  DrawingFunctionality _drawingFunctionalityObj = DrawingFunctionality();
   UserDetails _userDetailsObj = UserDetails();
-
-// Color selection is done here
-  void selectedColor(){
-    customStrokeWidth = 4;
-    showDialog(
-        context: context,
-        child: AlertDialog(
-          title: const Text('Pick a color!'),
-          content: Stack(
-            children: [
-              ColorPicker(
-                pickerColor: pickerColor,
-                onColorChanged: (color) {
-                  setState(() {
-                    pickerColor = color;
-                  });
-                },
-              ),
-              Positioned(bottom: 10,right: 80, child: RaisedButton(color: Colors.blue,onPressed: () => Navigator.pop(context), child: Text("Close")))
-            ]
-          ),
-        )
-    );
-  }
 
   @override
   void initState() {
     super.initState();
     channel = IOWebSocketChannel.connect(ipVal);
     _stream = channel.stream.map((data) => processStreamData(data));
-    endPointList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
+    _drawingFunctionalityObj.endPointList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
     controller = new AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
@@ -102,17 +67,42 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
 
   void processStreamData(data) {
     print("Received Data: " + data);
-    tempListServer.clear();
-    tempListServer = received_From_Server(data);
-    serverDrawnList = serverDrawnList + endPointList + tempListServer;
+    _drawingFunctionalityObj.tempListServer.clear();
+    _drawingFunctionalityObj.tempListServer = received_From_Server(data);
+    _drawingFunctionalityObj.serverDrawnList = _drawingFunctionalityObj.serverDrawnList + _drawingFunctionalityObj.endPointList + _drawingFunctionalityObj.tempListServer;
     if(erase){
-      tempList.clear();
-      userDrawnList.clear();
-      serverDrawnList.clear();
-      tempListServer.clear();
+      _drawingFunctionalityObj.tempList.clear();
+      _drawingFunctionalityObj.userDrawnList.clear();
+      _drawingFunctionalityObj.serverDrawnList.clear();
+      _drawingFunctionalityObj.tempListServer.clear();
       erase = false;
     }
     return data;
+  }
+
+  Color pickerColor = new Color(0xff443a49);
+  // Color selection is done here
+  void selectedColor(BuildContext context){
+    customStrokeWidth = 4;
+    showDialog(
+        context: context,
+        child: AlertDialog(
+          title: const Text('Pick a color!'),
+          content: Stack(
+              children: [
+                ColorPicker(
+                  pickerColor: pickerColor,
+                  onColorChanged: (color) {
+                    setState(() {
+                      pickerColor = color;
+                    });
+                  },
+                ),
+                Positioned(bottom: 10,right: 80, child: RaisedButton(color: Colors.blue,onPressed: () => Navigator.pop(context), child: Text("Close")))
+              ]
+          ),
+        )
+    );
   }
 
   @override
@@ -154,19 +144,19 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                     ),
                     child: ListView.separated(
                       shrinkWrap: true,
-                      itemCount: chatMessage_List.length,
+                      itemCount: _drawingFunctionalityObj.chatMessage_List.length,
                       itemBuilder: (context, index) =>
                           ListTile(
                             leading: RawMaterialButton(
                               onPressed: () {},
                               elevation: 2.0,
                               fillColor: Colors.black26,
-                              child: Text("${chatMessage_List[index].senderName}",
+                              child: Text("${_drawingFunctionalityObj.chatMessage_List[index].senderName}",
                                 style: TextStyle(color: Colors.white),),
                               padding: EdgeInsets.all(19.0),
                               shape: CircleBorder(),
                             ),
-                              title: Text("${chatMessage_List[index].Message}"),
+                              title: Text("${_drawingFunctionalityObj.chatMessage_List[index].Message}"),
                           ),
                       reverse: false,
                       separatorBuilder: (context, index) =>
@@ -211,7 +201,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                           _userDetailsObj = UserDetails();
                           _userDetailsObj.senderName = userName;
                           _userDetailsObj.Message = send_Message;
-                          chatMessage_List.add(_userDetailsObj);
+                          _drawingFunctionalityObj.chatMessage_List.add(_userDetailsObj);
                           send_To_Server();
                           send_Message = "";
                           sendMessageController.clear();
@@ -246,13 +236,13 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
 //                        excludeFromSemantics: true,
                         onPanUpdate: (details) {
                           setState(() {
-                            userDrawnList.add(DrawingPoints(points: details.localPosition, paint: Paint()
+                            _drawingFunctionalityObj.userDrawnList.add(DrawingPoints(points: details.localPosition, paint: Paint()
                               ..strokeCap = strokeCap
                               ..color = pickerColor
                               ..strokeWidth = customStrokeWidth
                             ));
 
-                            tempList.add(DrawingPoints(points: details.localPosition, paint: Paint()
+                            _drawingFunctionalityObj.tempList.add(DrawingPoints(points: details.localPosition, paint: Paint()
                               ..strokeCap = strokeCap
                               ..color = pickerColor
                               ..strokeWidth = customStrokeWidth
@@ -261,10 +251,10 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                         },
                         onPanEnd: (details) {
                           setState(() {
-                            userDrawnList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
-                            tempList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
+                            _drawingFunctionalityObj.userDrawnList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
+                            _drawingFunctionalityObj.tempList.add(DrawingPoints(points: Offset(0.0,0.0), paint: Paint()));
                             send_To_Server();
-                            tempList.clear();
+                            _drawingFunctionalityObj.tempList.clear();
                           });
                         },
                         child: Container(
@@ -276,7 +266,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                                 return CustomPaint(
                                   size: Size.infinite,
                                   painter: Drawing(
-                                    pointsListDrawData: userDrawnList,
+                                    pointsListDrawData: _drawingFunctionalityObj.userDrawnList,
                                   ),
                                 );
                               }
@@ -285,7 +275,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                                 return CustomPaint(
                                   size: Size.infinite,
                                   painter: Drawing(
-                                    pointsListDrawData: userDrawnList + serverDrawnList,
+                                    pointsListDrawData: _drawingFunctionalityObj.userDrawnList + _drawingFunctionalityObj.serverDrawnList,
                                   ),
                                 );
                               }
@@ -294,7 +284,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                                 return CustomPaint(
                                   size: Size.infinite,
                                   painter: Drawing(
-                                    pointsListDrawData: userDrawnList + serverDrawnList,
+                                    pointsListDrawData: _drawingFunctionalityObj.userDrawnList + _drawingFunctionalityObj.serverDrawnList,
                                   ),
                                 );
                               }
@@ -327,10 +317,10 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                                 onPressed: () {
                                   setState(() {
                                     erase = true;
-                                    tempList.clear();
-                                    userDrawnList.clear();
-                                    serverDrawnList.clear();
-                                    tempListServer.clear();
+                                    _drawingFunctionalityObj.tempList.clear();
+                                    _drawingFunctionalityObj.userDrawnList.clear();
+                                    _drawingFunctionalityObj.serverDrawnList.clear();
+                                    _drawingFunctionalityObj.tempListServer.clear();
                                     send_To_Server();
                                     erase = false;
                                   });
@@ -385,7 +375,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                                       child: Icon(Icons.color_lens),
                                       onPressed: () async {
                                         setState(() {
-                                          selectedColor();
+                                          selectedColor(context);
                                         });
                                       }
                                   )
@@ -432,10 +422,10 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
   }
 
   void send_To_Server(){
-    if(tempList.isNotEmpty){
-      send_mappedlist = tempList.map((e) => e.toJson()).toList();
+    if(_drawingFunctionalityObj.tempList.isNotEmpty){
+      _drawingFunctionalityObj.send_mappedlist = _drawingFunctionalityObj.tempList.map((e) => e.toJson()).toList();
     }else{
-      send_mappedlist = List();
+      _drawingFunctionalityObj.send_mappedlist = List();
     }
     send_chat_key.clear();
     send_key.clear();
@@ -444,14 +434,14 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
       send_chat_key["User"] = userName;
       send_key["Chat"] = send_chat_key;
     }
-    send_key["PointsList"] = send_mappedlist;
+    send_key["PointsList"] = _drawingFunctionalityObj.send_mappedlist;
     send_key["Erase"] = erase;
     String jsonPointData = jsonEncode(send_key);
     print("****************************************************************************************");
     print("Sent Message");
-    print("TempList len:" + tempList.length.toString());
+    print("TempList len:" + _drawingFunctionalityObj.tempList.length.toString());
     print(jsonPointData);
-    print("UserDrawnList len:" + userDrawnList.length.toString());
+    print("UserDrawnList len:" + _drawingFunctionalityObj.userDrawnList.length.toString());
     print("******************************************************************************************");
     channel.sink.add(jsonPointData);
   }
@@ -460,7 +450,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
     received_key.clear();
     chat_key.clear();
     received_key = jsonDecode(receivedData);
-    received_mapsList = received_key["PointsList"];
+    _drawingFunctionalityObj.received_mapsList = received_key["PointsList"];
     erase = received_key["Erase"];
     if(received_key.containsKey("Chat")){
       chat_key = received_key["Chat"];
@@ -468,13 +458,13 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
       receiver_Username = chat_key["User"];
       _userDetailsObj.senderName = receiver_Username;
       _userDetailsObj.Message = received_chat_Message;
-      chatMessage_List.add(_userDetailsObj);
+      _drawingFunctionalityObj.chatMessage_List.add(_userDetailsObj);
       _chatStreamController.sink.add("Chat Message Received");
     }
-    if(received_mapsList.isNotEmpty){
-      decodedData = received_mapsList.map((e) => DrawingPoints.fromJson(e)).toList();
+    if(_drawingFunctionalityObj.received_mapsList.isNotEmpty){
+      _drawingFunctionalityObj.decodedData = _drawingFunctionalityObj.received_mapsList.map((e) => DrawingPoints.fromJson(e)).toList();
     }
-    return decodedData;
+    return _drawingFunctionalityObj.decodedData;
   }
 
   @override
