@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutterapp/src/widgets/drawingpage.dart';
+import 'package:flutterapp/src/screens/drawingpage.dart';
 
 class DrawingPoints {
   Paint paint;

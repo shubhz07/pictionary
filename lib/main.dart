@@ -1,8 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutterapp/src/widgets/homePage.dart';
-import 'package:flutterapp/src/widgets/drawingpage.dart';
-import 'package:flutterapp/src/widgets/aipage.dart';
+import 'package:flutterapp/src/screens/homePage.dart';
+import 'package:flutterapp/src/screens/drawingpage.dart';
+import 'package:flutterapp/src/screens/aipage.dart';
 
 void main() => runApp(Route());
 

@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
-import 'package:flutterapp/src/widgets/homePage.dart';
+import 'package:flutterapp/src/screens/homePage.dart';
 import 'package:http/http.dart' as http;
 
 
