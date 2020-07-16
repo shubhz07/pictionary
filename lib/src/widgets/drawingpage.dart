@@ -15,6 +15,7 @@ import 'dart:math' as math;
 import 'package:flutterapp/src/dialogs/width_dialog.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
 import 'package:dash_chat/dash_chat.dart';
+import 'package:flutterapp/src/models/userdetails.dart';
 
 class DrawingPage extends StatefulWidget {
   final Ip ipObj;
@@ -28,10 +29,9 @@ double customStrokeWidth = 4;
 class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin {
   String ipVal;
   String userName;
-  String send_Message;
-  String received_chat_data ;
-  String received_chat_Message;
-  String receiver_Username;
+  String send_Message = "";
+  String received_chat_Message = "";
+  String receiver_Username = "";
   IOWebSocketChannel channel;
   Color pickerColor = new Color(0xff443a49);
   StrokeCap strokeCap = StrokeCap.round;
@@ -56,10 +56,12 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
   List<DrawingPoints> serverDrawnList = List();
   List<DrawingPoints> endPointList = List();
   List send_mappedlist = List();
-  List<dynamic> received_mapsList;
+  List<dynamic> received_mapsList = List();
   List chatData = List();
-  List<DrawingPoints> decodedData;
-  List<String> chatMessage_List = List();
+  List<DrawingPoints> decodedData = List();
+  List<UserDetails> chatMessage_List = List();
+
+  UserDetails _userDetailsObj = UserDetails();
 
 // Color selection is done here
   void selectedColor(){
@@ -95,21 +97,8 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _chatStream = chatStreamFunction();
+    _chatStream = _chatStreamController.stream;
   }
-
-  Stream<String> chatStreamFunction() async* {
-    _chatStreamController.stream.listen((data) {
-      print("DataReceived: "+data);
-      return data;
-    }, onDone: () {
-      print("Chat Stream Done");
-    }, onError: (error) {
-      print("Chat Stream Error");
-    });
-
-  }
-
 
   void processStreamData(data) {
     print("Received Data: " + data);
@@ -137,6 +126,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
 
     return Scaffold(
       key: _scaffoldKey,
+//      backgroundColor: Colors.transparent,
 //      appBar: AppBar(
 //        title: Text('Pictionary'),
 //        centerTitle: true,
@@ -151,42 +141,37 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
 //            SizedBox(height: 10,),
             Container(
               height: 350,
-              child: StreamBuilder<String>(
+              child: StreamBuilder(
                 stream: _chatStream,
                 builder:(context, snapshot){
-                  if(snapshot.hasData){
-                    return ListView.separated(
+                  return Container(
+                    decoration: new BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: new BorderRadius.only(
+                          topLeft: const Radius.circular(20.0),
+                          topRight: const Radius.circular(20.0),
+                        ),
+                    ),
+                    child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: chatMessage_List.length,
                       itemBuilder: (context, index) =>
-                          Card(
-                            child: ListTile(
-//                            leading: Text("$userName  ->",
-//                              style: TextStyle(color: Colors.red),),
-                                title: Text("${chatMessage_List[index]}")
+                          ListTile(
+                            leading: RawMaterialButton(
+                              onPressed: () {},
+                              elevation: 2.0,
+                              fillColor: Colors.black26,
+                              child: Text("${chatMessage_List[index].senderName}",
+                                style: TextStyle(color: Colors.white),),
+                              padding: EdgeInsets.all(19.0),
+                              shape: CircleBorder(),
                             ),
-
+                              title: Text("${chatMessage_List[index].Message}"),
                           ),
                       reverse: false,
                       separatorBuilder: (context, index) =>
                           SizedBox(height: 5,),
-                    );
-                  }
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: chatMessage_List.length,
-                    itemBuilder: (context, index) =>
-                        Card(
-                          child: ListTile(
-//                            leading: Text("$userName  ->",
-//                              style: TextStyle(color: Colors.red),),
-                              title: Text("${chatMessage_List[index]}")
-                          ),
-
-                        ),
-                    reverse: false,
-                    separatorBuilder: (context, index) =>
-                        SizedBox(height: 5,),
+                    ),
                   );
                 },
               ),
@@ -223,8 +208,12 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
                       onPressed: () {
                         setState(() {
                           send_Message = sendMessageController.text;
+                          _userDetailsObj = UserDetails();
+                          _userDetailsObj.senderName = userName;
+                          _userDetailsObj.Message = send_Message;
+                          chatMessage_List.add(_userDetailsObj);
                           send_To_Server();
-                          chatMessage_List.add(send_Message);
+                          send_Message = "";
                           sendMessageController.clear();
                         });
                       },
@@ -254,7 +243,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
 //              Gesture Detector
                     Positioned(
                       child: GestureDetector(
-                        excludeFromSemantics: true,
+//                        excludeFromSemantics: true,
                         onPanUpdate: (details) {
                           setState(() {
                             userDrawnList.add(DrawingPoints(points: details.localPosition, paint: Paint()
@@ -448,13 +437,15 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
     }else{
       send_mappedlist = List();
     }
+    send_chat_key.clear();
+    send_key.clear();
     if(send_Message.isNotEmpty){
       send_chat_key["Message"] = send_Message;
       send_chat_key["User"] = userName;
+      send_key["Chat"] = send_chat_key;
     }
     send_key["PointsList"] = send_mappedlist;
     send_key["Erase"] = erase;
-    send_key["Chat"] = send_chat_key;
     String jsonPointData = jsonEncode(send_key);
     print("****************************************************************************************");
     print("Sent Message");
@@ -466,16 +457,19 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
   }
 
   List<DrawingPoints> received_From_Server(String receivedData){
+    received_key.clear();
+    chat_key.clear();
     received_key = jsonDecode(receivedData);
     received_mapsList = received_key["PointsList"];
     erase = received_key["Erase"];
-    chat_key = received_key["Chat"];
-//    received_chat_key = jsonDecode(received_chat_data);
-    received_chat_Message = chat_key["Message"];
-    receiver_Username = chat_key["User"];
-    if(receiver_Username.isNotEmpty && received_chat_Message.isNotEmpty){
+    if(received_key.containsKey("Chat")){
+      chat_key = received_key["Chat"];
+      received_chat_Message = chat_key["Message"];
+      receiver_Username = chat_key["User"];
+      _userDetailsObj.senderName = receiver_Username;
+      _userDetailsObj.Message = received_chat_Message;
+      chatMessage_List.add(_userDetailsObj);
       _chatStreamController.sink.add("Chat Message Received");
-      chatMessage_List.add(receiver_Username+"->"+received_chat_Message);
     }
     if(received_mapsList.isNotEmpty){
       decodedData = received_mapsList.map((e) => DrawingPoints.fromJson(e)).toList();
@@ -487,6 +481,7 @@ class _DrawingPageState extends State<DrawingPage> with TickerProviderStateMixin
   void dispose(){
     super.dispose();
     channel.sink.close();
+    _chatStreamController.close();
   }
 
 }
